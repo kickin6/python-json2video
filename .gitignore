@@ -1,0 +1,30 @@
+# Python compiled files
+*.pyc
+__pycache__/
+
+# Environment and package files
+env/
+venv/
+*.egg-info/
+Pipfile
+Pipfile.lock
+
+# Cache directory
+cache/
+
+# Movies directory
+movies/
+
+# Docker related files
+*.log
+.dockerignore
+
+# System-specific files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Flask related files
+instance/
+

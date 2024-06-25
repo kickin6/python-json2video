@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  flask-zoom-app:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./movies:/app/movies
+    environment:
+      FLASK_APP: app.py
+    command: flask run --host=0.0.0.0
+
