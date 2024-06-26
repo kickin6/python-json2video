@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from OpenSSL import SSL
 import subprocess
 import os
 import string
@@ -12,9 +13,28 @@ CACHE_DIR = 'cache'
 MOVIES_DIR = 'movies'
 DEFAULT_ZOOM_INCREMENT = 0.002  # Default zoom level if not provided
 
+# Define the SSL context
+context = SSL.Context(SSL.SSLv23_METHOD)
+context.use_privatekey_file('/app/ssl/key.pem')
+context.use_certificate_file('/app/ssl/cert.pem')
+
 def generate_random_filename(length=16):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for i in range(length)) + '.mp4'
+
+def download_file(url, dest_folder):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+    filename = url.split('/')[-1]
+    file_path = os.path.join(dest_folder, filename)
+    r = requests.get(url, stream=True)
+    if r.status_code == 200:
+        with open(file_path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+    else:
+        return None
+    return file_path
 
 @app.route('/create_zoom_video', methods=['POST'])
 def create_zoom_video():
@@ -49,20 +69,24 @@ def create_zoom_video():
     api_key_folder = os.path.join(MOVIES_DIR, api_key)
     os.makedirs(api_key_folder, exist_ok=True)
     
-    # Check if the input file exists
-    if not os.path.isfile(input_file):
-        app.logger.error(f'Input file {input_file} does not exist')
-        return jsonify({'error': 'Input file does not exist'}), 400
+    # Check if the input file is a URL and download it
+    if input_file.startswith('http://') or input_file.startswith('https://'):
+        input_file_path = download_file(input_file, '/app/temp')
+        if not input_file_path:
+            app.logger.error(f'Failed to download file from {input_file}')
+            return jsonify({'error': 'Failed to download file'}), 400
+    else:
+        input_file_path = input_file
 
     # Define cache path for the input file
-    cached_input_file = os.path.join(CACHE_DIR, os.path.basename(input_file))
+    cached_input_file = os.path.join(CACHE_DIR, os.path.basename(input_file_path))
     
     # Copy the input file to the cache directory if it doesn't already exist
     if not os.path.isfile(cached_input_file):
-        shutil.copy(input_file, cached_input_file)
-        app.logger.info(f'Copied {input_file} to cache.')
+        shutil.copy(input_file_path, cached_input_file)
+        app.logger.info(f'Copied {input_file_path} to cache.')
     else:
-        app.logger.info(f'Using cached version of {input_file}.')
+        app.logger.info(f'Using cached version of {input_file_path}.')
 
     # Generate a random filename for the output file
     output_file = os.path.join(api_key_folder, generate_random_filename())
@@ -99,6 +123,10 @@ def create_zoom_video():
         app.logger.error(f'Webhook call failed: {str(e)}')
         return jsonify({'error': f'Webhook call failed: {str(e)}'}), 500
 
+@app.route('/')
+def hello():
+    return "Hello, SSL on port 5000!"
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, ssl_context=context)
 

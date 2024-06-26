@@ -12,6 +12,9 @@ Pipfile.lock
 # Cache directory
 cache/
 
+# SSL directory
+ssl/
+
 # Movies directory
 movies/
 

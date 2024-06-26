@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install ffmpeg
 RUN apt-get update && apt-get install -y ffmpeg
 
+# Copy SSL certificates
+COPY ssl/key.pem /app/ssl/
+COPY ssl/cert.pem /app/ssl/
+
 # Make port 5000 available to the world outside this container
 EXPOSE 5000
 
@@ -20,5 +24,5 @@ EXPOSE 5000
 ENV FLASK_APP=app.py
 
 # Run app.py when the container launches
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000", "--cert=/app/ssl/cert.pem", "--key=/app/ssl/key.pem"]
 
