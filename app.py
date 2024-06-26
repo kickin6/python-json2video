@@ -1,10 +1,12 @@
 from flask import Flask, request, jsonify
+from werkzeug.utils import secure_filename
 import subprocess
 import os
 import string
 import random
 import shutil
 import requests
+import re
 
 app = Flask(__name__)
 
@@ -15,6 +17,23 @@ DEFAULT_ZOOM_INCREMENT = 0.002  # Default zoom level if not provided
 def generate_random_filename(length=16):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for i in range(length)) + '.mp4'
+
+def is_valid_url(url):
+    regex = re.compile(
+        r'^(?:http|ftp)s?://'  # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+        r'localhost|'  # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|'  # ...or ipv4
+        r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
+        r'(?::\d+)?'  # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    return re.match(regex, url) is not None
+
+def is_valid_record_id(record_id):
+    return re.match(r'^[0-9a-zA-Z]+$', record_id) is not None
+
+def is_valid_api_key(api_key):
+    return re.match(r'^[a-z]+$', api_key) is not None
 
 @app.route('/create_zoom_video', methods=['POST'])
 def create_zoom_video():
@@ -28,16 +47,26 @@ def create_zoom_video():
     api_key = data.get('api_key')
     zoom = data.get('zoom', '0')
 
-    # Use default zoom if zoom key is present but value is blank
+    # Validate input parameters
+    if not input_file or not is_valid_url(input_file):
+        return jsonify({'error': 'Invalid input_file URL'}), 400
+    if not output_height or not isinstance(output_height, int):
+        return jsonify({'error': 'Invalid output_height'}), 400
+    if not output_width or not isinstance(output_width, int):
+        return jsonify({'error': 'Invalid output_width'}), 400
+    if not record_id or not is_valid_record_id(record_id):
+        return jsonify({'error': 'Invalid record_id'}), 400
+    if not webhook_url or not is_valid_url(webhook_url):
+        return jsonify({'error': 'Invalid webhook_url'}), 400
+    if not api_key or not is_valid_api_key(api_key):
+        return jsonify({'error': 'Invalid api_key'}), 400
     if zoom == '':
         zoom = DEFAULT_ZOOM_INCREMENT
     else:
-        zoom = float(zoom)
-
-    # Check if required parameters are provided
-    if not input_file or not output_height or not output_width or not record_id or not webhook_url or not api_key:
-        app.logger.error('Missing required parameters')
-        return jsonify({'error': 'Missing required parameters'}), 400
+        try:
+            zoom = float(zoom)
+        except ValueError:
+            return jsonify({'error': 'Invalid zoom'}), 400
 
     app.logger.info(f'Received request with input_file={input_file}, output_height={output_height}, output_width={output_width}, record_id={record_id}, webhook_url={webhook_url}, api_key={api_key}, zoom={zoom}')
 
@@ -46,23 +75,26 @@ def create_zoom_video():
     os.makedirs(MOVIES_DIR, exist_ok=True)
     
     # Create or use subfolder under movies directory named after the api_key
-    api_key_folder = os.path.join(MOVIES_DIR, api_key)
+    api_key_folder = os.path.join(MOVIES_DIR, secure_filename(api_key))
     os.makedirs(api_key_folder, exist_ok=True)
     
-    # Check if the input file exists
-    if not os.path.isfile(input_file):
-        app.logger.error(f'Input file {input_file} does not exist')
-        return jsonify({'error': 'Input file does not exist'}), 400
+    # Secure the input file name
+    input_file_name = secure_filename(os.path.basename(input_file))
+    cached_input_file = os.path.join(CACHE_DIR, input_file_name)
 
-    # Define cache path for the input file
-    cached_input_file = os.path.join(CACHE_DIR, os.path.basename(input_file))
-    
-    # Copy the input file to the cache directory if it doesn't already exist
-    if not os.path.isfile(cached_input_file):
-        shutil.copy(input_file, cached_input_file)
-        app.logger.info(f'Copied {input_file} to cache.')
+    # Download the file if it is a URL
+    if is_valid_url(input_file):
+        try:
+            response = requests.get(input_file, stream=True)
+            response.raise_for_status()
+            with open(cached_input_file, 'wb') as out_file:
+                shutil.copyfileobj(response.raw, out_file)
+            app.logger.info(f'Downloaded {input_file} to cache.')
+        except requests.RequestException as e:
+            app.logger.error(f'Failed to download input file: {str(e)}')
+            return jsonify({'error': 'Failed to download input file'}), 400
     else:
-        app.logger.info(f'Using cached version of {input_file}.')
+        return jsonify({'error': 'Input file must be a valid URL'}), 400
 
     # Generate a random filename for the output file
     output_file = os.path.join(api_key_folder, generate_random_filename())
