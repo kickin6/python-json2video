@@ -71,7 +71,8 @@ def create_zoom_video():
         os.makedirs(MOVIES_DIR)
 
     # Create a sub-directory for this API key if it doesn't exist
-    api_key_folder = os.path.join(MOVIES_DIR, api_key)
+    secure_api_key = secure_filename(api_key)
+    api_key_folder = os.path.join(MOVIES_DIR, secure_api_key)
     if not os.path.exists(api_key_folder):
         os.makedirs(api_key_folder)
 
