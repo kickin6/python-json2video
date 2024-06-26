@@ -1,0 +1,6 @@
+# This is a comment
+# Each line is a file pattern followed by one or more owners
+# Owners can be GitHub usernames or teams within an organization
+
+# Specify the default owners for the entire repository
+*       @kickin6
