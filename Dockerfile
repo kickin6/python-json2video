@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y ffmpeg && apt-get clean && rm -rf /var/
 # Make port 5003 available to the world outside this container
 EXPOSE 5003
 
-# Define environment variables
+# Define environment variable
 ENV FLASK_APP=app.py
 
 # Run app.py when the container launches, explicitly setting the port
