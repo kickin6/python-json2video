@@ -1,27 +1,27 @@
-# Use an official Python runtime as a parent image
+# Use the official Python image from the Docker Hub
 FROM python:3.12-slim
 
-# Set the working directory in the container
+# Set the working directory
 WORKDIR /app
 
-# Copy only the requirements file to leverage caching
-COPY requirements.txt /app/
+# Copy the requirements.txt file into the container
+COPY requirements.txt requirements.txt
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
-COPY . /app
-
 # Install ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ffmpeg
+
+# Copy the rest of the working directory contents into the container
+COPY . .
+
+# Set environment variables
+ENV FLASK_APP=run.py
+ENV FLASK_ENV=production
 
 # Make port 5003 available to the world outside this container
 EXPOSE 5003
 
-# Define environment variable
-ENV FLASK_APP=app.py
-
-# Run app.py when the container launches, explicitly setting the port
+# Run the application
 CMD ["flask", "run", "--host=0.0.0.0", "--port=5003"]
-

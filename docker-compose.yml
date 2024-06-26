@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   json2video:
@@ -7,13 +7,14 @@ services:
     ports:
       - "5003:5003"
     volumes:
+      - ./cache:/app/cache
       - ./movies:/app/movies
     environment:
-      - FLASK_APP=app.py
+      - FLASK_APP=run.py
+      - PUBLIC_PORT=${MOVIES_PUBLIC_PORT}
     networks:
       - app-network
 
 networks:
   app-network:
     driver: bridge
-
