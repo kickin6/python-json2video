@@ -95,7 +95,7 @@ def create_video(api_key):
         response.raise_for_status()
         app.logger.info(f'Webhook called successfully with payload: {payload}')
 
-        return jsonify({'message': 'Video created successfully', 'output_file': output_file}), 200
+        return jsonify({'message': 'Video created successfully'}), 200
     except subprocess.CalledProcessError as e:
         app.logger.error(f'FFmpeg command failed: {str(e)}')
         return jsonify({'error': str(e)}), 500
