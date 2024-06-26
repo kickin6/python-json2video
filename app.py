@@ -14,6 +14,9 @@ CACHE_DIR = 'cache'
 MOVIES_DIR = 'movies'
 DEFAULT_ZOOM_INCREMENT = 0.002  # Default zoom level if not provided
 
+SCHEME = os.getenv('SCHEME', 'https')
+PORT = os.getenv('PORT', '8890')
+
 def generate_random_filename(length=16):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for i in range(length)) + '.mp4'
@@ -21,7 +24,7 @@ def generate_random_filename(length=16):
 def is_valid_url(url):
     regex = re.compile(
         r'^(?:http|ftp)s?://'  # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
         r'localhost|'  # localhost...
         r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|'  # ...or ipv4
         r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
@@ -60,29 +63,22 @@ def create_zoom_video():
         return jsonify({'error': 'Invalid webhook_url'}), 400
     if not api_key or not is_valid_api_key(api_key):
         return jsonify({'error': 'Invalid api_key'}), 400
-    if zoom == '':
-        zoom = DEFAULT_ZOOM_INCREMENT
-    else:
-        try:
-            zoom = float(zoom)
-        except ValueError:
-            return jsonify({'error': 'Invalid zoom'}), 400
 
-    app.logger.info(f'Received request with input_file={input_file}, output_height={output_height}, output_width={output_width}, record_id={record_id}, webhook_url={webhook_url}, api_key={api_key}, zoom={zoom}')
+    # Create directories if not exist
+    if not os.path.exists(CACHE_DIR):
+        os.makedirs(CACHE_DIR)
+    if not os.path.exists(MOVIES_DIR):
+        os.makedirs(MOVIES_DIR)
 
-    # Ensure cache and movies directories exist
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    os.makedirs(MOVIES_DIR, exist_ok=True)
-    
-    # Create or use subfolder under movies directory named after the api_key
-    api_key_folder = os.path.join(MOVIES_DIR, secure_filename(api_key))
-    os.makedirs(api_key_folder, exist_ok=True)
-    
-    # Secure the input file name
-    input_file_name = secure_filename(os.path.basename(input_file))
-    cached_input_file = os.path.join(CACHE_DIR, input_file_name)
+    # Create a sub-directory for this API key if it doesn't exist
+    secure_api_key = secure_filename(api_key)
+    api_key_folder = os.path.join(MOVIES_DIR, secure_api_key)
+    if not os.path.exists(api_key_folder):
+        os.makedirs(api_key_folder)
 
-    # Download the file if it is a URL
+    cached_input_file = os.path.join(CACHE_DIR, secure_filename(os.path.basename(input_file)))
+
+    # Download the input file to the cache directory
     if is_valid_url(input_file):
         try:
             response = requests.get(input_file, stream=True)
@@ -110,7 +106,8 @@ def create_zoom_video():
         app.logger.info(f'Video created at {output_file}')
 
         # Full URL for the created video file
-        full_url = request.host_url + output_file
+        BASE_URL = f"{SCHEME}://{request.host}:{PORT}"
+        full_url = f"{BASE_URL}/{output_file}"
 
         # Payload for the webhook
         payload = {
@@ -132,5 +129,5 @@ def create_zoom_video():
         return jsonify({'error': f'Webhook call failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
+    port = int(os.environ.get('PORT', 5003))
+    app.run(debug=False, host='0.0.0.0', port=port)

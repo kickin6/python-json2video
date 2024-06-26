@@ -1,13 +1,19 @@
 version: '3.8'
 
 services:
-  flask-zoom-app:
+  json2video:
     build: .
+    container_name: json2video
     ports:
-      - "5000:5000"
+      - "5003:5003"
     volumes:
       - ./movies:/app/movies
     environment:
-      FLASK_APP: app.py
-    command: flask run --host=0.0.0.0
+      - FLASK_APP=app.py
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
