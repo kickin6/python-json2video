@@ -98,7 +98,7 @@ def create_video_task(data, flask_app=None):
 
                 flask_app.logger.info(f'Processing video: {cached_input_file} to {output_file} completed successfully.')
             except Exception as e:
-                flask_app.logger.error(f'Error processing video: {str(e)}')
+                flask_app.logger.error(f'Error processing video')
                 raise e
 
         flask_app.logger.info(f'Video created at {output_file}')
@@ -116,9 +116,9 @@ def create_video_task(data, flask_app=None):
         try:
             response = requests.post(webhook_url, json=webhook_payload)
             response.raise_for_status()
-            flask_app.logger.info(f'Webhook called successfully with payload: {webhook_payload}')
+            flask_app.logger.info(f'Webhook called successfully with payload')
         except requests.RequestException as e:
-            flask_app.logger.error(f'Webhook call failed: {str(e)}')
+            flask_app.logger.error(f'Webhook call failed')
             return 'Webhook call failed'
 
         return 'Video created successfully'
