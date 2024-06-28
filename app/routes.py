@@ -58,6 +58,7 @@ def create_video(api_key):
     if not is_valid_dimension(output_height):
         return jsonify({'error': 'Invalid output height'}), 400
 
+
     try:
         # Validate and sanitize URL again before making a request
         if not is_valid_url(input_url):
