@@ -24,7 +24,7 @@ def create_video(api_key):
 
     is_valid, error = validate_json(data)
     if not is_valid:
-        return jsonify({'error': f'Invalid input data'}), 400
+        return jsonify({'error': f'Invalid input data: {error}'}), 400
 
     record_id = data['record_id']
     input_url = data['input_url']
@@ -59,6 +59,10 @@ def create_video(api_key):
         return jsonify({'error': 'Invalid output height'}), 400
 
     try:
+        # Validate and sanitize URL again before making a request
+        if not is_valid_url(input_url):
+            return jsonify({'error': 'Invalid input URL'}), 400
+
         response = requests.get(input_url, stream=True, timeout=10)
         response.raise_for_status()
 
@@ -111,6 +115,8 @@ def create_video(api_key):
         'filename': filename, 
         'message': 'Video processing started', 
         'input_height': data['input_height'], 
-        'input_width': data['input_width']
+        'input_width': data['input_width'],
+        'output_height': data['output_height'], 
+        'output_width': data['output_width']
     }
     return jsonify(response_payload), 200
