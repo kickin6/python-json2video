@@ -1,8 +1,9 @@
+# app/routes.py
 import os
 import json
 import subprocess
 import requests
-from flask import Blueprint, request, jsonify, current_app as app
+from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 from .validations import validate_json, validate_api_key, is_valid_record_id, is_valid_url, is_valid_framerate, is_valid_duration, is_valid_cache, is_valid_zoom_level, is_valid_crop, is_valid_dimension
 from .utils import generate_random_filename
@@ -19,7 +20,7 @@ def validate():
 @main_bp.route('/create-video', methods=['POST'])
 @validate_api_key(pass_api_key=True)
 def create_video(api_key):
-    from app.celery_app import long_running_task  # Import here to avoid circular import
+    from app.tasks import create_video_task  # Import here to avoid circular import
     data = request.json
 
     is_valid, error = validate_json(data)
@@ -53,17 +54,9 @@ def create_video(api_key):
         return jsonify({'error': 'Invalid zoom level'}), 400
     if not is_valid_crop(crop):
         return jsonify({'error': 'Invalid crop setting'}), 400
-    if not is_valid_dimension(output_width):
-        return jsonify({'error': 'Invalid output width'}), 400
-    if not is_valid_dimension(output_height):
-        return jsonify({'error': 'Invalid output height'}), 400
+    if not is_valid_dimension(output_width) or not is_valid_dimension(output_height):
+        return jsonify({'error': 'Invalid output dimensions'}), 400
 
-    data['api_key'] = api_key
-
-    # Ensure the cache directory exists
-    os.makedirs(Config.CACHE_DIR, exist_ok=True)
-
-    # Secure the filename and replace special characters
     cached_input_file = os.path.join(Config.CACHE_DIR, secure_filename(input_url.replace('://', '_').replace('/', '_')))
     movies_folder = os.path.join(Config.MOVIES_DIR, api_key)
     os.makedirs(movies_folder, exist_ok=True)
@@ -90,7 +83,7 @@ def create_video(api_key):
         if process.returncode != 0:
             app.logger.error(f'ffprobe error: {stderr.decode("utf-8")}')
             raise Exception(f'ffprobe failed with error: {stderr.decode("utf-8")}')
-
+        
         dimensions = json.loads(stdout.decode('utf-8'))
         data['input_width'] = dimensions['streams'][0]['width']
         data['input_height'] = dimensions['streams'][0]['height']
@@ -106,6 +99,15 @@ def create_video(api_key):
     data['cached_input_file'] = cached_input_file
     data['output_file'] = output_file
 
-    long_running_task.apply_async(args=[data])
+    create_video_task.apply_async(args=[data])
 
-    return jsonify({'record_id':record_id, 'filename': filename, 'message': 'Video processing started', 'input_height':data['input_height'], 'input_width':data['input_width']}), 200
+    response_payload = {
+        'record_id': record_id, 
+        'filename': filename, 
+        'message': 'Video processing started', 
+        'input_height': data['input_height'], 
+        'input_width': data['input_width'],
+        'output_height': data['output_height'], 
+        'output_width': data['output_width']
+    }
+    return jsonify(response_payload), 200
