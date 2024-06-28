@@ -1,5 +1,6 @@
 import re
 import os
+from urllib.parse import urlparse
 
 from functools import wraps
 from flask import request, jsonify
@@ -76,7 +77,24 @@ def is_valid_url(url):
         r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'
         r'(?::\d+)?'
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-    return re.match(regex, url) is not None
+    
+    # Basic regex validation
+    if not re.match(regex, url):
+        return False
+    
+    # Parse the URL to check hostname and scheme
+    parsed_url = urlparse(url)
+    
+    # Ensure the URL uses http or https
+    if parsed_url.scheme not in ['http', 'https']:
+        return False
+    
+    # Ensure the hostname is in the allowed IPs or domains
+    allowed_ips = [ip for sublist in Config.ALLOWED_IPS.values() for ip in sublist]
+    if parsed_url.hostname not in allowed_ips and parsed_url.hostname not in Config.ALLOWED_DOMAINS:
+        return False
+    
+    return True
 
 def is_valid_zoom_level(zoom):
     if zoom == "":

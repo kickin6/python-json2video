@@ -1,4 +1,3 @@
-# app/routes.py
 import os
 import json
 import subprocess
@@ -25,7 +24,7 @@ def create_video(api_key):
 
     is_valid, error = validate_json(data)
     if not is_valid:
-        return jsonify({'error': f'Invalid input data: {error}'}), 400
+        return jsonify({'error': f'Invalid input data'}), 400
 
     record_id = data['record_id']
     input_url = data['input_url']
@@ -49,22 +48,28 @@ def create_video(api_key):
     if not is_valid_duration(duration):
         return jsonify({'error': 'Invalid duration level'}), 400
     if not is_valid_cache(cache):
-        return jsonify({'error': 'Invalid cache setting'}), 400
+        return jsonify({'error': 'Invalid cache value'}), 400
     if not is_valid_zoom_level(zoom):
         return jsonify({'error': 'Invalid zoom level'}), 400
     if not is_valid_crop(crop):
-        return jsonify({'error': 'Invalid crop setting'}), 400
-    if not is_valid_dimension(output_width) or not is_valid_dimension(output_height):
-        return jsonify({'error': 'Invalid output dimensions'}), 400
-
-    cached_input_file = os.path.join(Config.CACHE_DIR, secure_filename(input_url.replace('://', '_').replace('/', '_')))
-    movies_folder = os.path.join(Config.MOVIES_DIR, api_key)
-    os.makedirs(movies_folder, exist_ok=True)
+        return jsonify({'error': 'Invalid crop value'}), 400
+    if not is_valid_dimension(output_width):
+        return jsonify({'error': 'Invalid output width'}), 400
+    if not is_valid_dimension(output_height):
+        return jsonify({'error': 'Invalid output height'}), 400
 
     try:
-        # Download the file from the URL
-        response = requests.get(input_url, stream=True)
+        response = requests.get(input_url, stream=True, timeout=10)
         response.raise_for_status()
+
+        # Validate response content type and length
+        if 'content-length' in response.headers and int(response.headers['content-length']) > 10 * 1024 * 1024:
+            return jsonify({'error': 'File is too large'}), 400
+        if 'content-type' in response.headers and 'application/json' in response.headers['content-type']:
+            return jsonify({'error': 'Invalid file type'}), 400
+
+        # Process the response as required
+        cached_input_file = generate_random_filename()
         with open(cached_input_file, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
@@ -88,10 +93,10 @@ def create_video(api_key):
         data['input_width'] = dimensions['streams'][0]['width']
         data['input_height'] = dimensions['streams'][0]['height']
     except requests.RequestException as e:
-        app.logger.error(f'Failed to download input file: {str(e)}')
-        return 'Failed to download input file'
+        return jsonify({'error': f'Failed to download input file: {str(e)}'}), 400
 
     # Generate a random filename for the output file
+    movies_folder = Config.MOVIES_DIR
     filename = generate_random_filename()
     output_file = os.path.join(movies_folder, filename)
     
@@ -106,8 +111,6 @@ def create_video(api_key):
         'filename': filename, 
         'message': 'Video processing started', 
         'input_height': data['input_height'], 
-        'input_width': data['input_width'],
-        'output_height': data['output_height'], 
-        'output_width': data['output_width']
+        'input_width': data['input_width']
     }
     return jsonify(response_payload), 200
