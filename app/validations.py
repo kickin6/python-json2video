@@ -12,11 +12,15 @@ input_schema = {
     "properties": {
         "record_id": {"type": "string"},
         "input_url": {"type": "string"},
+        "webhook_url": {"type": "string"},
+        "framerate": {"type": "number"},
+        "duration": {"type": "number"},
+        "cache": {"type": "boolean"},
         "zoom": {"type": "number"},
         "output_width": {"type": "integer"},
         "output_height": {"type": "integer"}
     },
-    "required": ["record_id", "input_url", "output_width", "output_height"]
+    "required": ["record_id", "input_url", "webhook_url", "framerate", "duration", "cache", "output_width", "output_height"]
 }
 
 def validate_json(data):
@@ -29,8 +33,10 @@ def validate_json(data):
 
 def directory_exists(api_key):
     """Check if a directory exists for the given API key."""
-    directory = os.path.join(Config.MOVIES_DIR, api_key)
-    return os.path.isdir(directory)
+    fullpath = os.path.normpath(os.path.join(Config.MOVIES_DIR, api_key))
+    if not fullpath.startswith(Config.MOVIES_DIR):
+        raise Exception("not allowed")
+    return os.path.isdir(fullpath)
 
 def validate_api_key(pass_api_key=False):
     """Decorator to validate the API key."""
@@ -46,7 +52,7 @@ def validate_api_key(pass_api_key=False):
                 return jsonify({'error': 'Invalid API key'}), 400
 
             if not directory_exists(api_key):
-                return jsonify({'error': 'Directory does not exist for the provided API key'}), 400
+                return jsonify({'error': 'Directory does not exist'}), 400
 
             if pass_api_key:
                 return func(*args, api_key=api_key, **kwargs)
@@ -76,10 +82,18 @@ def is_valid_zoom_level(zoom):
     if zoom == "":
         return Config.DEFAULT_ZOOM
     try:
-        zoom = float(zoom)
-        return 0.0 <= zoom <= 1.0
+        zoom = int(zoom)
+        return zoom >= -100 and zoom <= 100
     except ValueError:
         return False
+
+def is_valid_crop(crop):
+    if isinstance(crop, str):
+        if crop.lower() == 'true':
+            return True
+        elif crop.lower() == 'false':
+            return True
+    return isinstance(crop, bool)
 
 def is_valid_dimension(value):
     try:
@@ -87,3 +101,25 @@ def is_valid_dimension(value):
         return value > 0
     except ValueError:
         return False
+
+def is_valid_framerate(value):
+    try:
+        value = int(value)
+        return value > 0
+    except ValueError:
+        return False
+
+def is_valid_duration(value):
+    try:
+        value = int(value)
+        return value <= 60
+    except ValueError:
+        return False
+
+def is_valid_cache(cache):
+    if isinstance(cache, str):
+        if cache.lower() == 'true':
+            return True
+        elif cache.lower() == 'false':
+            return True
+    return isinstance(cache, bool)

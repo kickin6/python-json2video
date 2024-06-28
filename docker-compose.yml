@@ -2,7 +2,8 @@ version: "3.8"
 
 services:
   json2video:
-    build: .
+    build:
+      context: .
     container_name: json2video
     ports:
       - "5003:5003"
@@ -10,8 +11,54 @@ services:
       - ./cache:/app/cache
       - ./movies:/app/movies
     environment:
-      - FLASK_APP=run.py
+      - FLASK_APP=app.run
       - PUBLIC_PORT=${MOVIES_PUBLIC_PORT}
+      - CACHE_DIR=cache
+      - MOVIES_DIR=movies
+      - DEFAULT_ZOOM=0.002
+      - SCHEME=https
+    networks:
+      - app-network
+
+  celery_worker:
+    build:
+      context: .
+    container_name: celery_worker
+    command: celery -A app.celery_app worker --loglevel=error
+    volumes:
+      - ./cache:/app/cache
+      - ./movies:/app/movies
+    environment:
+      - FLASK_APP=app.run
+      - PUBLIC_PORT=${MOVIES_PUBLIC_PORT}
+      - CACHE_DIR=cache
+      - MOVIES_DIR=movies
+      - DEFAULT_ZOOM=0.002
+      - SCHEME=https
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_LOG_LEVEL=ERROR
+
+    networks:
+      - app-network
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+  test:
+    build:
+      context: .
+    container_name: test
+    command: pytest
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app # Add this line
     networks:
       - app-network
 

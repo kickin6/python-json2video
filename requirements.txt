@@ -12,3 +12,8 @@ urllib3==2.2.2
 Werkzeug==3.0.3
 Flask-JWT-Extended
 jsonschema
+celery
+redis
+python-dotenv
+pytest
+pytest-mock

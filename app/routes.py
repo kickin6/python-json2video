@@ -1,12 +1,12 @@
 import os
+import json
 import subprocess
 import requests
 from flask import Blueprint, request, jsonify, current_app as app
 from werkzeug.utils import secure_filename
-from .validations import validate_json, validate_api_key, is_valid_record_id, is_valid_api_key, is_valid_url, is_valid_zoom_level, is_valid_dimension
+from .validations import validate_json, validate_api_key, is_valid_record_id, is_valid_url, is_valid_framerate, is_valid_duration, is_valid_cache, is_valid_zoom_level, is_valid_crop, is_valid_dimension
 from .utils import generate_random_filename
 from .config import Config
-
 
 main_bp = Blueprint('main', __name__)
 
@@ -19,6 +19,7 @@ def validate():
 @main_bp.route('/create-video', methods=['POST'])
 @validate_api_key(pass_api_key=True)
 def create_video(api_key):
+    from app.celery_app import long_running_task  # Import here to avoid circular import
     data = request.json
 
     is_valid, error = validate_json(data)
@@ -27,25 +28,37 @@ def create_video(api_key):
 
     record_id = data['record_id']
     input_url = data['input_url']
-    zoom = data.get('zoom', Config.DEFAULT_ZOOM)
+    framerate = data['framerate']
+    duration = data['duration']
+    cache = data['cache']
+    zoom = data['zoom']
+    crop = data['crop']
     output_width = data['output_width']
     output_height = data['output_height']
     webhook_url = data.get('webhook_url')
 
     if not is_valid_record_id(record_id):
         return jsonify({'error': 'Invalid record ID'}), 400
-    if not is_valid_api_key(api_key):
-        return jsonify({'error': 'Invalid API key'}), 400
     if not is_valid_url(input_url):
         return jsonify({'error': 'Invalid input URL'}), 400
     if webhook_url and not is_valid_url(webhook_url):
         return jsonify({'error': 'Invalid webhook URL'}), 400
+    if not is_valid_framerate(framerate):
+        return jsonify({'error': 'Invalid framerate'}), 400
+    if not is_valid_duration(duration):
+        return jsonify({'error': 'Invalid duration level'}), 400
+    if not is_valid_cache(cache):
+        return jsonify({'error': 'Invalid cache setting'}), 400
     if not is_valid_zoom_level(zoom):
         return jsonify({'error': 'Invalid zoom level'}), 400
+    if not is_valid_crop(crop):
+        return jsonify({'error': 'Invalid crop setting'}), 400
     if not is_valid_dimension(output_width):
         return jsonify({'error': 'Invalid output width'}), 400
     if not is_valid_dimension(output_height):
         return jsonify({'error': 'Invalid output height'}), 400
+
+    data['api_key'] = api_key
 
     # Ensure the cache directory exists
     os.makedirs(Config.CACHE_DIR, exist_ok=True)
@@ -62,43 +75,37 @@ def create_video(api_key):
         with open(cached_input_file, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
+
+        ffprobe_command = [
+            'ffprobe',
+            '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height',
+            '-of', 'json',
+            cached_input_file
+        ]
+        process = subprocess.Popen(ffprobe_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            app.logger.error(f'ffprobe error: {stderr.decode("utf-8")}')
+            raise Exception(f'ffprobe failed with error: {stderr.decode("utf-8")}')
+
+        dimensions = json.loads(stdout.decode('utf-8'))
+        data['input_width'] = dimensions['streams'][0]['width']
+        data['input_height'] = dimensions['streams'][0]['height']
     except requests.RequestException as e:
         app.logger.error(f'Failed to download input file: {str(e)}')
-        return jsonify({'error': 'Failed to download input file'}), 400
+        return 'Failed to download input file'
 
     # Generate a random filename for the output file
-    output_file = os.path.join(movies_folder, generate_random_filename())
+    filename = generate_random_filename()
+    output_file = os.path.join(movies_folder, filename)
+    
+    data['request_host'] = request.host
+    data['cached_input_file'] = cached_input_file
+    data['output_file'] = output_file
 
-    try:
-        # Run the ffmpeg command to create the video
-        command = [
-            'ffmpeg', '-loop', '1', '-i', cached_input_file,
-            '-vf', f"zoompan=z='zoom+{zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=125*25,scale={output_width}:{output_height}",
-            '-t', '5', '-r', '25', '-pix_fmt', 'yuv420p', output_file
-        ]
-        app.logger.info(f'Running command: {" ".join(command)}')
-        subprocess.run(command, check=True)
-        app.logger.info(f'Video created at {output_file}')
+    long_running_task.apply_async(args=[data])
 
-        # Full URL for the created video file
-        BASE_URL = f"{Config.SCHEME}://{request.host}:{Config.PUBLIC_PORT}"
-        full_url = f"{BASE_URL}/{output_file}"
-
-        # Payload for the webhook
-        payload = {
-            'record_id': record_id,
-            'filename': full_url
-        }
-
-        # Call the webhook
-        response = requests.post(webhook_url, json=payload)
-        response.raise_for_status()
-        app.logger.info(f'Webhook called successfully with payload: {payload}')
-
-        return jsonify({'message': 'Video created successfully'}), 200
-    except subprocess.CalledProcessError as e:
-        app.logger.error(f'FFmpeg command failed: {str(e)}')
-        return jsonify({'error': str(e)}), 500
-    except requests.RequestException as e:
-        app.logger.error(f'Webhook call failed: {str(e)}')
-        return jsonify({'error': f'Webhook call failed: {str(e)}'}), 500
+    return jsonify({'record_id':record_id, 'filename': filename, 'message': 'Video processing started', 'input_height':data['input_height'], 'input_width':data['input_width']}), 200
