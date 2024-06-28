@@ -15,6 +15,7 @@ This project implements a JSON to Video processor using FFMPEG and Flask, encaps
 4. [Running Tests](#running-tests)
 5. [Contributing](#contributing)
 6. [License](#license)
+7. [Disclaimer](#disclaimer)
 
 ## Introduction
 
@@ -102,3 +103,9 @@ Contributions are welcome! Please follow these steps to contribute:
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Disclaimer
+
+**Warning:** The user is responsible for all security aspects of the application and the environment it runs in, including but not limited to the computer, network, user access, and execution, other scripts and code running on connected systems, and external services like Make.com.
+
+**Disclosure:** We will not be held liable for any use or misuse of this application. By using this application, you agree to these terms.

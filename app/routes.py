@@ -2,7 +2,7 @@ import os
 import json
 import subprocess
 import requests
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from .validations import validate_json, validate_api_key, is_valid_record_id, is_valid_url, is_valid_framerate, is_valid_duration, is_valid_cache, is_valid_zoom_level, is_valid_crop, is_valid_dimension
 from .utils import generate_random_filename
@@ -24,7 +24,7 @@ def create_video(api_key):
 
     is_valid, error = validate_json(data)
     if not is_valid:
-        return jsonify({'error': f'Invalid input data: {error}'}), 400
+        return jsonify({'error': f'Invalid input data'}), 400
 
     record_id = data['record_id']
     input_url = data['input_url']
@@ -91,14 +91,14 @@ def create_video(api_key):
         stdout, stderr = process.communicate()
 
         if process.returncode != 0:
-            app.logger.error(f'ffprobe error: {stderr.decode("utf-8")}')
+            current_app.logger.error(f'ffprobe error: {stderr.decode("utf-8")}')
             raise Exception(f'ffprobe failed with error: {stderr.decode("utf-8")}')
         
         dimensions = json.loads(stdout.decode('utf-8'))
         data['input_width'] = dimensions['streams'][0]['width']
         data['input_height'] = dimensions['streams'][0]['height']
     except requests.RequestException as e:
-        return jsonify({'error': f'Failed to download input file: {str(e)}'}), 400
+        return jsonify({'error': f'Failed to download input file'}), 400
 
     # Generate a random filename for the output file
     movies_folder = Config.MOVIES_DIR
