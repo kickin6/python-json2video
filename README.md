@@ -12,12 +12,9 @@ This project implements a JSON to Video processor using FFMPEG and Flask, encaps
 3. [Running the Application](#running-the-application)
    - [Starting the Services](#starting-the-services)
    - [Stopping the Services](#stopping-the-services)
-4. [Usage](#usage)
-   - [Creating a Zoom Video](#creating-a-zoom-video)
-5. [Configuration](#configuration)
-6. [Troubleshooting](#troubleshooting)
-7. [Contributing](#contributing)
-8. [License](#license)
+4. [Running Tests](#running-tests)
+5. [Contributing](#contributing)
+6. [License](#license)
 
 ## Introduction
 
@@ -70,81 +67,37 @@ To stop the running services, execute:
 docker-compose down
 ```
 
-## Usage
+## Running Tests
 
-### Creating a Zoom Video
+To run the tests, you can use the provided `run_tests.sh` script. The script allows running all tests, tests in a specific file, or a specific test case.
 
-Send a POST request to the `/create_zoom_video` endpoint to create a zoom video. Here is an example using `curl`:
+1. **Run all tests**:
 
-```bash
-curl -X POST -H "Content-Type: application/json" -d '{
-    "input_file": "/app/movies/scene1.png",
-    "output_height": 720,
-    "output_width": 1280, 
-    "webhook_url":"http://my-webhook-server.com/", 
-    "record_id":"9235634", 
-    "zoom":"", 
-    "api_key":"my-key"
-}' http://localhost:5000/create_zoom_video
-```
+   ```bash
+   ./run_tests.sh
+   ```
 
-Ensure the input file exists in the `./movies` directory, as this directory is mounted inside the Docker container.
+2. **Run all tests in a specific file**:
 
-## Configuration
+   ```bash
+   ./run_tests.sh tests/test_validations.py
+   ```
 
-### Docker Compose
-
-The `docker-compose.yml` file defines the services and their configurations:
-
-```yaml
-version: '3.8'
-
-services:
-  flask-zoom-app:
-    build: .
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./movies:/app/movies
-    environment:
-      FLASK_APP: app.py
-    command: flask run --host=0.0.0.0
-```
-
-### Environment Variables
-
-You can configure the Flask application using environment variables defined in the Docker Compose file.
-
-### Requirements
-
-The `requirements.txt` file lists all Python dependencies needed for the Flask application:
-
-```text
-blinker==1.8.2
-certifi==2024.6.2
-charset-normalizer==3.3.2
-click==8.1.7
-Flask==3.0.3
-idna==3.7
-itsdangerous==2.2.0
-Jinja2==3.1.4
-MarkupSafe==2.1.5
-requests==2.32.3
-urllib3==2.2.2
-Werkzeug==3.0.3
-```
-
-## Troubleshooting
-
-- **Issue:** Input file does not exist.
-  - **Solution:** Ensure the file is placed in the `./movies` directory.
-  
-- **Issue:** Webhook call failed.
-  - **Solution:** Verify the webhook server is running and accessible from the Docker container.
+3. **Run a specific test case**:
+   ```bash
+   ./run_tests.sh tests/test_validations.py test_is_valid_url
+   ```
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request for any improvements or additions.
+Contributions are welcome! Please follow these steps to contribute:
+
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/your-feature`).
+3. Make your changes.
+4. Commit your changes (`git commit -am 'Add new feature'`).
+5. Push to the branch (`git push origin feature/your-feature`).
+6. Open a Pull Request.
 
 ## License
 
